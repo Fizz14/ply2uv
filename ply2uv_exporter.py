@@ -30,6 +30,10 @@ def write_some_data(context, filepath, use_some_setting):
     jprint(debug_log, "running write_some_data...")
 
     obj = bpy.context.active_object
+    if obj is None or obj.type != 'MESH' or not obj.select_get():
+        jprint(debug_log, "Error: No active and selected mesh object")
+        return {'CANCELLED'}
+    
     mesh = obj.data
     mesh.calc_loop_triangles()
 
@@ -51,18 +55,17 @@ def write_some_data(context, filepath, use_some_setting):
 
         # Collect the UV coordinates for the first UV layer
         uv1_coords = [mesh.uv_layers[0].data[loop.index].uv for loop in loops]
-        uvs1.append(uv1_coords)
+        uvs1.append(uv1_coords[0])  # Take the first UV coordinate for the vertex
 
         # Check if there are multiple UV layers
         if num_uv_layers > 1:
             # Collect the UV coordinates for the second UV layer
             uv2_coords = [mesh.uv_layers[1].data[loop.index].uv for loop in loops]
             jprint(debug_log, f"Second UV Layer - Vertex {vertex.index}: {uv2_coords}")
-            uvs2.append(uv2_coords)
+            uvs2.append(uv2_coords[0])  # Take the first UV coordinate for the vertex
         else:
-            jprint("Couldn't find 2nd UVs")
-            uvs2.append([(0.0, 0.0)])
-                
+            jprint(debug_log, "Couldn't find 2nd UVs")
+            uvs2.append((0.0, 0.0))
 
     faces = []
     for tri in mesh.loop_triangles:
@@ -89,8 +92,8 @@ def write_some_data(context, filepath, use_some_setting):
         f.write(b"end_header\n")
 
         for i, vert in enumerate(vertices):
-            uv1 = uvs1[i][0]  # Extract the first UV coordinate for the vertex
-            uv2 = uvs2[i][0]  # Extract the first UV coordinate for the vertex
+            uv1 = uvs1[i]
+            uv2 = uvs2[i]
             jprint(debug_log, f"v: {vert[0]}, {vert[1]}, {vert[2]} : {uv1.x} {uv1.y} : {uv2.x} {uv2.y}")
             f.write(struct.pack('fff', vert[0], vert[1], vert[2]))
             f.write(struct.pack('ff', uv1.x, uv1.y))
@@ -171,4 +174,4 @@ if __name__ == "__main__":
     register()
 
     # test call
-    bpy.ops.export_test.some_data('INVOKE_DEFAULT')
+    bpy.ops.export_ply2uv.data('INVOKE_DEFAULT')
