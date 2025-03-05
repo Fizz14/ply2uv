@@ -37,7 +37,6 @@ def write_some_data(context, filepath, use_logging):
         return {'CANCELLED'}
     
     mesh = obj.data
-    mesh.calc_loop_triangles()
 
     vertices = []
     uvs1 = []
@@ -59,7 +58,7 @@ def write_some_data(context, filepath, use_logging):
         # Collect the UV coordinates for the first UV layer
         if num_uv_layers > 0:
             uv1_coords = [mesh.uv_layers[0].data[loop.index].uv for loop in loops]
-            uvs1.append(uv1_coords[0])  # Take the first UV coordinate for the vertex
+            uvs1.append(uv1_coords[0])  # Take the first UV coordinate for thel vertex
         else:
             uvs1.append((0.0, 0.0))
 
@@ -79,9 +78,14 @@ def write_some_data(context, filepath, use_logging):
             colors.append((1.0, 1.0, 1.0, 1.0))
 
     faces = []
-    for tri in mesh.loop_triangles:
-        face = [mesh.loops[loop_index].vertex_index for loop_index in tri.loops]
-        faces.append(face)
+    edges = []
+    if len(mesh.polygons) > 0:
+        for poly in mesh.polygons:
+            face = [mesh.loops[loop_index].vertex_index for loop_index in poly.loop_indices]
+            faces.append(face)
+    else:
+        for edge in mesh.edges:
+            edges.append((edge.vertices[0], edge.vertices[1]))
 
     jprint(debug_log, f"Writing data to {filepath}", use_logging)
     
@@ -102,8 +106,13 @@ def write_some_data(context, filepath, use_logging):
             f.write(b"property uchar red\n")
             f.write(b"property uchar green\n")
             f.write(b"property uchar blue\n")
-        f.write(f"element face {len(faces)}\n".encode())
-        f.write(b"property list uchar int vertex_indices\n")
+        if len(faces) > 0:
+            f.write(f"element face {len(faces)}\n".encode())
+            f.write(b"property list uchar int vertex_indices\n")
+        else:
+            f.write(f"element edge {len(edges)}\n".encode())
+            f.write(b"property int vertex1\n")
+            f.write(b"property int vertex2\n")
         f.write(b"end_header\n")
 
         for i, vert in enumerate(vertices):
@@ -125,14 +134,22 @@ def write_some_data(context, filepath, use_logging):
                 b = int(color[2] * 255)
                 #f.write(struct.pack('BBB', int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)))
                 f.write(struct.pack('BBB', r, g, b))
-                
-        for face in faces:
-            jprint(debug_log, "Face len is " + str(len(face)), use_logging)
-            jprint(debug_log, f"{face[0]} {face[1]} {face[2]}", use_logging)
-            f.write(struct.pack('B', 3))
-            f.write(struct.pack('I', face[0]))
-            f.write(struct.pack('I', face[1]))
-            f.write(struct.pack('I', face[2]))
+        
+        jprint(debug_log, "num faces " + str(len(faces)), use_logging)
+        if len(faces) > 0:
+            for face in faces:
+                jprint(debug_log, "Face len is " + str(len(face)), use_logging)
+                jprint(debug_log, f"{face[0]} {face[1]} {face[2]}", use_logging)
+                f.write(struct.pack('B', len(face)))
+                f.write(struct.pack('I', face[0]))
+                f.write(struct.pack('I', face[1]))
+                f.write(struct.pack('I', face[2]))
+                if(len(face) > 3):
+                    f.write(struct.pack('I', face[3]))
+        else:
+            for edge in edges:
+                jprint(debug_log, "Edge vertices " + str(edge[0]) + " " + str(edge[1]), use_logging)
+                f.write(struct.pack('ii', edge[0], edge[1]))
 
     jprint(debug_log, f"Binary PLY file saved to {filepath}", use_logging)
 
